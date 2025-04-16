@@ -40,21 +40,30 @@ type Quiz struct {
 	questions [][]string
 }
 
-func (q *Quiz) start(score *int, quit chan bool) {
+func (q *Quiz) start(score *int, timer *time.Timer) {
+	answerchan := make(chan string)
+
 	for i, record := range q.questions {
 
 		fmt.Print("# Question ", i+1, " : ", record[0], " ")
+		go func() {
+			var answer string
+			fmt.Scanf("%s", &answer)
+			answer = strings.TrimSpace(answer)
 
-		stdReader := bufio.NewReader(os.Stdin)
+			answerchan <- answer
+		}()
 
-		userAnswer, _ := stdReader.ReadString('\n')
-
-		if strings.TrimRight(userAnswer, "\n") == record[1] {
-			*score++
+		select {
+		case <-timer.C:
+			fmt.Println()
+			return
+		case answer := <-answerchan:
+			if answer == record[1] {
+				*score++
+			}
 		}
 	}
-
-	quit <- true
 }
 
 func main() {
@@ -93,17 +102,9 @@ func main() {
 		fmt.Println("Invalid input, Please enter any key & press enter")
 	}
 
-	quit := make(chan bool)
 	// starts the quiz timer
 	quizTimer := time.NewTimer(time.Duration(*timer) * time.Second)
-	go quiz.start(&score, quit)
-
-	select {
-	case <-quizTimer.C:
-		fmt.Println()
-	case <-quit:
-		fmt.Println()
-	}
+	quiz.start(&score, quizTimer)
 
 	fmt.Println("You scored", score, "out of", totalQuestions)
 }
